@@ -1,79 +1,109 @@
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
+import axios from "axios";
 import TodoCard from "./TodoCard";
+import EditTaskModal from "../modal/EditTaskModal";
 
-export default function Dashboard() {
-  const [todos, setTodos] = useState([
-    {
-      id: 1,
-      title: "Task 1",
-      description: "This is the description for this task",
-      dueDate: "04/12/2023",
-      status: "completed",
-    },
-    {
-      id: 2,
-      title: "Task 2",
-      description: "This is the description for this task",
-      dueDate: "05/15/2023",
-      status: "completed",
-    },
-    {
-      id: 3,
-      title: "Task 3",
-      description: "This is the description for this task",
-      dueDate: "08/21/2023",
-      status: "pending",
-    },
-    {
-      id: 4,
-      title: "Task 4",
-      description: "This is the description for this task lorem ",
-      dueDate: "08/21/2023",
-      status: "pending",
-    },
-  ]);
+export default function Dashboard({ selectedFolder, tasks, setTasks }) {
+  const token = localStorage.getItem("token");
+  const API_URL = "http://localhost:5000/api/tasks";
 
-  // Toggle complete/incomplete
-  const handleToggleComplete = (todo) => {
-    setTodos((prev) =>
-      prev.map((t) =>
-        t.id === todo.id
-          ? { ...t, status: t.status === "completed" ? "pending" : "completed" }
-          : t,
-      ),
-    );
-  };
+  const [editingTask, setEditingTask] = useState(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-  // Delete a todo
-  const handleDelete = (todo) => {
-    setTodos((prev) => prev.filter((t) => t.id !== todo.id));
-  };
-
-  // Update a todo (example: just toggles title for demo)
-  const handleUpdate = (todo) => {
-    const newTitle = prompt("Update title", todo.title);
-    if (newTitle !== null) {
-      setTodos((prev) =>
-        prev.map((t) => (t.id === todo.id ? { ...t, title: newTitle } : t)),
-      );
+  const fetchTasks = async () => {
+    if (!selectedFolder) return;
+    try {
+      const res = await axios.get(`${API_URL}/folder/${selectedFolder}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setTasks(res.data);
+    } catch (err) {
+      console.error("Failed to fetch tasks:", err);
     }
   };
 
+  useEffect(() => {
+    fetchTasks();
+  }, [selectedFolder]);
+
+  const handleToggleComplete = async (todo) => {
+    try {
+      const updatedStatus =
+        todo.status === "completed" ? "pending" : "completed";
+      const res = await axios.put(
+        `${API_URL}/${todo._id}`,
+        { status: updatedStatus },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      setTasks((prev) => prev.map((t) => (t._id === todo._id ? res.data : t)));
+    } catch (err) {
+      console.error("Failed to update task status:", err);
+    }
+  };
+
+  const handleDelete = async (todo) => {
+    if (!window.confirm("Are you sure you want to delete this task?")) return;
+    try {
+      await axios.delete(`${API_URL}/${todo._id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setTasks((prev) => prev.filter((t) => t._id !== todo._id));
+    } catch (err) {
+      console.error("Failed to delete task:", err);
+    }
+  };
+
+  const handleEdit = (todo) => {
+    setEditingTask(todo);
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveEdit = async (updatedTask) => {
+    try {
+      const res = await axios.put(
+        `${API_URL}/${editingTask._id}`,
+        updatedTask,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      setTasks((prev) =>
+        prev.map((t) => (t._id === editingTask._id ? res.data : t)),
+      );
+      setIsEditModalOpen(false);
+      setEditingTask(null);
+    } catch (err) {
+      console.error(
+        "Failed to update task:",
+        err.response?.data || err.message,
+      );
+      alert("Failed to update task.");
+    }
+  };
+
+  // Optional: sort tasks by dueDate ascending
+  const sortedTasks = [...tasks].sort(
+    (a, b) => new Date(a.dueDate) - new Date(b.dueDate),
+  );
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 mt-6">
       <h3 className="text-xl font-semibold">
-        All tasks ({todos.length} tasks)
+        {selectedFolder ? `Tasks in Folder` : "Select a folder"} ({tasks.length}{" "}
+        tasks)
       </h3>
 
+      {tasks.length === 0 && (
+        <p className="text-muted-foreground">No tasks in this folder.</p>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {todos.map((todo, index) => (
+        {sortedTasks.map((todo, index) => (
           <TodoCard
-            key={todo.id}
+            key={todo._id}
             todo={todo}
             highlighted={index === 0}
-            onToggleComplete={handleToggleComplete}
-            onUpdate={handleUpdate}
-            onDelete={handleDelete}
+            onToggleComplete={() => handleToggleComplete(todo)}
+            onDelete={() => handleDelete(todo)}
+            onEdit={() => handleEdit(todo)} // <-- NOW WORKS
           />
         ))}
 
@@ -81,6 +111,13 @@ export default function Dashboard() {
           Add new task
         </div>
       </div>
+
+      <EditTaskModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        onSubmit={handleSaveEdit}
+        task={editingTask}
+      />
     </div>
   );
 }

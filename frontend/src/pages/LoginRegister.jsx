@@ -1,28 +1,79 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useNavigate } from "react-router-dom";
 
 export default function LoginRegisterPage() {
   const [activeTab, setActiveTab] = useState("login");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleLogin = (e) => {
+  const navigate = useNavigate();
+  const API_URL = "http://localhost:5000/api/auth";
+
+  // Redirect if already logged in
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      navigate("/home", { replace: true });
+    }
+  }, [navigate]);
+
+  // login
+  const handleLogin = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    setError("");
+
     const formData = new FormData(e.target);
-    console.log("Login:", {
-      email: formData.get("email"),
-      password: formData.get("password"),
-    });
+    const email = formData.get("email");
+    const password = formData.get("password");
+
+    try {
+      const res = await axios.post(`${API_URL}/login`, { email, password });
+      const { token, user } = res.data;
+
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(user));
+
+      navigate("/home"); // redirect after login
+    } catch (err) {
+      setError(err.response?.data?.message || "Login failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleRegister = (e) => {
+  // register
+  const handleRegister = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    setError("");
+
     const formData = new FormData(e.target);
-    console.log("Register:", {
-      name: formData.get("name"),
-      email: formData.get("email"),
-      password: formData.get("password"),
-    });
+    const name = formData.get("name");
+    const email = formData.get("email");
+    const password = formData.get("password");
+
+    try {
+      const res = await axios.post(`${API_URL}/register`, {
+        name,
+        email,
+        password,
+      });
+      const { token, user } = res.data;
+
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(user));
+
+      navigate("/home"); // redirect after register
+    } catch (err) {
+      setError(err.response?.data?.message || "Registration failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -30,14 +81,19 @@ export default function LoginRegisterPage() {
       <div className="bg-background rounded-2xl shadow-lg w-full max-w-md p-8 sm:p-12">
         <h2 className="text-2xl font-bold mb-6 text-center">Welcome</h2>
 
-        {/* Tabs for Login/Register */}
+        {error && (
+          <div className="bg-red-100 text-red-700 p-2 rounded mb-4 text-center">
+            {error}
+          </div>
+        )}
+
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="login">Login</TabsTrigger>
             <TabsTrigger value="register">Register</TabsTrigger>
           </TabsList>
 
-          {/* Login Form */}
+          {/* LOGIN FORM */}
           <TabsContent value="login">
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
@@ -60,13 +116,13 @@ export default function LoginRegisterPage() {
                   required
                 />
               </div>
-              <Button type="submit" className="w-full mt-2">
-                Login
+              <Button type="submit" className="w-full mt-2" disabled={loading}>
+                {loading ? "Logging in..." : "Login"}
               </Button>
             </form>
           </TabsContent>
 
-          {/* Register Form */}
+          {/* REGISTER FORM */}
           <TabsContent value="register">
             <form onSubmit={handleRegister} className="space-y-4">
               <div>
@@ -98,8 +154,8 @@ export default function LoginRegisterPage() {
                   required
                 />
               </div>
-              <Button type="submit" className="w-full mt-2">
-                Register
+              <Button type="submit" className="w-full mt-2" disabled={loading}>
+                {loading ? "Registering..." : "Register"}
               </Button>
             </form>
           </TabsContent>
