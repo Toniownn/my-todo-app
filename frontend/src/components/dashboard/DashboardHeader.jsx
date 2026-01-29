@@ -1,4 +1,3 @@
-// DashboardHeader.jsx
 import React, { useState, useEffect } from "react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -9,13 +8,12 @@ import axios from "axios";
 export default function DashboardHeader({
   darkMode,
   setDarkMode,
-  selectedFolderId,
-  tasks,
-  setTasks,
-  refreshTasks, // <-- receive refresh function
+  refreshTasks,
+  setSearchTerm,
 }) {
   const [isAddTaskModalOpen, setIsAddTaskModalOpen] = useState(false);
   const [folders, setFolders] = useState([]);
+  const [searchInput, setSearchInput] = useState("");
   const token = localStorage.getItem("token");
   const FOLDER_API = "http://localhost:5000/api/folders";
   const TASK_API = "http://localhost:5000/api/tasks";
@@ -53,11 +51,22 @@ export default function DashboardHeader({
     }
   };
 
+  const handleSearchChange = (e) => {
+    const value = e.target.value;
+    setSearchInput(value);
+    if (setSearchTerm) setSearchTerm(value);
+  };
+
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-4">
         <div className="flex">
-          <Input placeholder="Search task" className="w-full md:w-72" />
+          <Input
+            placeholder="Search task"
+            className="w-full md:w-72"
+            value={searchInput}
+            onChange={handleSearchChange}
+          />
         </div>
         <div className="flex justify-center">
           <span className="text-sm text-muted-foreground">2026, Jan 29</span>

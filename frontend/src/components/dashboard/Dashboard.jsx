@@ -1,30 +1,19 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import axios from "axios";
 import TodoCard from "./TodoCard";
-import EditTaskModal from "../modal/EditTaskModal";
 
-export default function Dashboard({ selectedFolder, tasks, setTasks }) {
+export default function Dashboard({
+  selectedFolder,
+  tasks,
+  setTasks,
+  searchTerm,
+}) {
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterPriority, setFilterPriority] = useState("");
+  const [sortBy, setSortBy] = useState("date");
+
   const token = localStorage.getItem("token");
   const API_URL = "http://localhost:5000/api/tasks";
-
-  const [editingTask, setEditingTask] = useState(null);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-
-  const fetchTasks = async () => {
-    if (!selectedFolder) return;
-    try {
-      const res = await axios.get(`${API_URL}/folder/${selectedFolder}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setTasks(res.data);
-    } catch (err) {
-      console.error("Failed to fetch tasks:", err);
-    }
-  };
-
-  useEffect(() => {
-    fetchTasks();
-  }, [selectedFolder]);
 
   const handleToggleComplete = async (todo) => {
     try {
@@ -53,57 +42,102 @@ export default function Dashboard({ selectedFolder, tasks, setTasks }) {
     }
   };
 
-  const handleEdit = (todo) => {
-    setEditingTask(todo);
-    setIsEditModalOpen(true);
-  };
+  // Filter, and sort tasks
+  const displayedTasks = useMemo(() => {
+    let filtered = [...tasks];
 
-  const handleSaveEdit = async (updatedTask) => {
-    try {
-      const res = await axios.put(
-        `${API_URL}/${editingTask._id}`,
-        updatedTask,
-        { headers: { Authorization: `Bearer ${token}` } },
+    // Filter
+    if (filterStatus)
+      filtered = filtered.filter((t) => t.status === filterStatus);
+    if (filterPriority)
+      filtered = filtered.filter((t) => t.priority === filterPriority);
+
+    if (searchTerm) {
+      const lower = searchTerm.toLowerCase();
+      filtered = filtered.filter(
+        (t) =>
+          t.title.toLowerCase().includes(lower) ||
+          (t.description && t.description.toLowerCase().includes(lower)),
       );
-      setTasks((prev) =>
-        prev.map((t) => (t._id === editingTask._id ? res.data : t)),
-      );
-      setIsEditModalOpen(false);
-      setEditingTask(null);
-    } catch (err) {
-      console.error(
-        "Failed to update task:",
-        err.response?.data || err.message,
-      );
-      alert("Failed to update task.");
     }
-  };
 
-  // Optional: sort tasks by dueDate ascending
-  const sortedTasks = [...tasks].sort(
-    (a, b) => new Date(a.dueDate) - new Date(b.dueDate),
-  );
+    // Sort
+    filtered.sort((a, b) => {
+      if (sortBy === "date") {
+        if (!a.dueDate) return 1;
+        if (!b.dueDate) return -1;
+        return new Date(a.dueDate) - new Date(b.dueDate);
+      } else if (sortBy === "priority") {
+        const priorityOrder = { high: 0, medium: 1, low: 2 };
+        return (
+          (priorityOrder[a.priority] || 3) - (priorityOrder[b.priority] || 3)
+        );
+      } else if (sortBy === "title") {
+        return a.title.localeCompare(b.title);
+      }
+      return 0;
+    });
+
+    return filtered;
+  }, [tasks, filterStatus, filterPriority, sortBy, searchTerm]);
 
   return (
     <div className="space-y-4 mt-6">
-      <h3 className="text-xl font-semibold">
-        {selectedFolder ? `Tasks in Folder` : "Select a folder"} ({tasks.length}{" "}
-        tasks)
-      </h3>
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <h3 className="text-xl font-semibold">
+          {selectedFolder ? `Tasks in Folder` : "Select a folder"} (
+          {displayedTasks.length} tasks)
+        </h3>
 
-      {tasks.length === 0 && (
-        <p className="text-muted-foreground">No tasks in this folder.</p>
+        <div className="flex flex-wrap gap-2 items-center">
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="border rounded px-2 py-1 text-sm"
+          >
+            <option value="">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="completed">Completed</option>
+          </select>
+          <select
+            value={filterPriority}
+            onChange={(e) => setFilterPriority(e.target.value)}
+            className="border rounded px-2 py-1 text-sm"
+          >
+            <option value="">All Priority</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="border rounded px-2 py-1 text-sm"
+          >
+            <option value="date">Sort by Date</option>
+            <option value="priority">Sort by Priority</option>
+            <option value="title">Sort by Title</option>
+          </select>
+        </div>
+      </div>
+
+      {/* No tasks */}
+      {displayedTasks.length === 0 && (
+        <p className="text-muted-foreground">No tasks match your criteria.</p>
       )}
 
+      {/* Task grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {sortedTasks.map((todo, index) => (
+        {displayedTasks.map((todo, index) => (
           <TodoCard
             key={todo._id}
             todo={todo}
             highlighted={index === 0}
             onToggleComplete={() => handleToggleComplete(todo)}
             onDelete={() => handleDelete(todo)}
-            onEdit={() => handleEdit(todo)} // <-- NOW WORKS
+            onEdit={() => {}}
           />
         ))}
 
@@ -111,13 +145,6 @@ export default function Dashboard({ selectedFolder, tasks, setTasks }) {
           Add new task
         </div>
       </div>
-
-      <EditTaskModal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        onSubmit={handleSaveEdit}
-        task={editingTask}
-      />
     </div>
   );
 }

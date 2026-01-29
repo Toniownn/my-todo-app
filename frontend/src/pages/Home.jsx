@@ -10,6 +10,7 @@ export default function Home() {
   const [darkMode, setDarkMode] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const token = localStorage.getItem("token");
   const TASK_API = "http://localhost:5000/api/tasks";
@@ -63,16 +64,15 @@ export default function Home() {
           <DashboardHeader
             darkMode={darkMode}
             setDarkMode={setDarkMode}
-            tasks={tasks}
-            setTasks={setTasks}
-            selectedFolderId={selectedFolder}
-            refreshTasks={refreshTasks} // pass refresh to header
+            refreshTasks={refreshTasks}
+            setSearchTerm={setSearchTerm}
           />
 
           <Dashboard
             selectedFolder={selectedFolder}
             tasks={tasks}
             setTasks={setTasks}
+            searchTerm={searchTerm}
           />
         </main>
       </div>
